@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>雀巢奶粉召回批次查询</title>
+    <style>
+        :root { --primary-color: #0056D2; --danger-color: #C62828; --safe-color: #2E7D32; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #f6f7f9; margin: 0; padding: 20px; line-height: 1.5; }
+        .container { max-width: 600px; margin: 0 auto; }
+        
+        /* 标题区 */
+        .header { text-align: center; margin-bottom: 25px; }
+        .main-title { font-size: 20px; font-weight: bold; color: #333; white-space: pre-line; }
+        .sub-title { font-size: 14px; color: #888; margin-top: 8px; }
+
+        /* 搜索框 */
+        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .input-group { display: flex; flex-direction: column; gap: 15px; }
+        input { height: 48px; border: 1px solid #ddd; border-radius: 8px; padding: 0 15px; font-size: 16px; outline: none; }
+        .btn { height: 48px; border: none; border-radius: 24px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-danger { background: var(--danger-color); color: white; margin-top: 15px; }
+
+        /* 结果区 */
+        #resultSection { display: none; text-align: center; padding: 20px; border-radius: 16px; margin-top: 10px; }
+        .safe-bg { background: #E8F5E9; color: var(--safe-color); border: 1px solid #C8E6C9; }
+        .danger-bg { background: #FFEBEE; color: var(--danger-color); border: 1px solid #FFCDD2; }
+        .result-msg { font-size: 17px; font-weight: bold; margin-bottom: 10px; white-space: pre-line; }
+
+        /* 底部导航 */
+        .nav-grid { display: flex; justify-content: space-between; gap: 10px; margin-top: 30px; }
+        .nav-item { flex: 1; background: white; padding: 15px 5px; border-radius: 12px; text-align: center; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        .nav-icon { font-size: 24px; margin-bottom: 5px; display: block; }
+        .nav-text { font-size: 12px; color: #555; }
+
+        /* 弹窗系统 */
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; }
+        .drawer { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-radius: 20px 20px 0 0; z-index: 101; max-height: 85vh; overflow-y: auto; padding-bottom: 30px; box-sizing: border-box; }
+        .drawer-header { padding: 20px; text-align: center; font-weight: bold; border-bottom: 1px solid #eee; position: sticky; top: 0; background: white; }
+        .drawer-content { padding: 20px; }
+        
+        /* 列表页专用 */
+        .tab-menu { display: flex; border-bottom: 1px solid #eee; margin-bottom: 15px; }
+        .tab { flex: 1; text-align: center; padding: 12px; font-size: 14px; color: #888; cursor: pointer; }
+        .tab.active { color: var(--primary-color); border-bottom: 3px solid var(--primary-color); font-weight: bold; }
+        .list-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .list-table th { background: #f8f9fa; text-align: left; padding: 10px; color: #666; }
+        .list-table td { padding: 10px; border-bottom: 1px solid #f0f0f0; }
+
+        /* 通用详情样式 */
+        .detail-row { margin-bottom: 15px; }
+        .detail-label { font-size: 12px; color: #999; }
+        .detail-val { font-size: 15px; color: #333; margin-top: 4px; font-weight: 500; }
+        .highlight { color: var(--danger-color); font-weight: bold; }
+        
+        /* 预览图片 */
+        .preview-img { width: 100%; border-radius: 8px; }
+
+        /* 让网页在微信分享时显示图标，且在 iPhone 底部不显示浏览器的控制栏 */
+        <link rel="shortcut icon" href="favicon.ico">
+        <link rel="apple-touch-icon" href="logo.png">
+
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="main-title">2026年1月雀巢(Nestlé)奶粉召回查询</div>
+        <div class="sub-title">核对包装罐底或罐身喷码</div>
+    </div>
+
+    <div class="card">
+        <div class="input-group">
+            <input type="text" id="batchInput" placeholder="请输入批次号 (如 51550742F1)" autofocus>
+            <button class="btn btn-primary" onclick="handleSearch()">立即查询</button>
+        </div>
+    </div>
+
+    <div id="resultSection">
+        <div id="resultMsg" class="result-msg"></div>
+        <button id="showDetailBtn" class="btn btn-danger" style="display:none; width:100%" onclick="openDrawer('detail')">显示详情</button>
+    </div>
+
+    <div class="nav-grid">
+        <div class="nav-item" onclick="openDrawer('list')">
+            <span class="nav-icon">📋</span><span class="nav-text">查看完整名单</span>
+        </div>
+        <div class="nav-item" onclick="openDrawer('howTo')">
+            <span class="nav-icon">🔍</span><span class="nav-text">如何看编号</span>
+        </div>
+        <div class="nav-item" onclick="openDrawer('donate')">
+            <span class="nav-icon">❤️</span><span class="nav-text">打赏支持</span>
+        </div>
+    </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeAll()"></div>
+
+<div class="drawer" id="drawerDetail">
+    <div class="drawer-header">产品召回详情</div>
+    <div class="drawer-content" id="detailContent"></div>
+</div>
+
+<div class="drawer" id="drawerList">
+    <div class="drawer-header">全部召回批次名单</div>
+    <div class="tab-menu">
+        <div class="tab active" id="tab1" onclick="switchTab(1)">中国大陆销售</div>
+        <div class="tab" id="tab2" onclick="switchTab(2)">跨境电商销售</div>
+    </div>
+    <div class="drawer-content">
+        <table class="list-table">
+            <thead><tr><th>产品名称</th><th>批次号</th><th>保质期</th></tr></thead>
+            <tbody id="listBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="drawer" id="drawerImage">
+    <div class="drawer-header" id="imgTitle">提示</div>
+    <div class="drawer-content">
+        <img src="" id="targetImg" class="preview-img" alt="正在加载图片...">
+        <p style="font-size:12px; color:#999; text-align:center; margin-top:10px">长按图片可保存</p>
+    </div>
+</div>
+
+<script>
+    // --- 数据配置 ---
+    const sourceInfo = {
+        source1: { title: "跨境电商渠道销售", time: "2026-01-06", source: "雀巢中国官网（https://www.nestle.com.cn/）", method: "请致电：4007700815(雀巢) / 4007766008(惠氏)", content: "由于某供应商原料瑕疵，预防性自愿回收特定批次。建议消费者立即停止喂食并联系客服。" },
+        source2: { title: "中国大陆地区销售", time: "2026-01-06", source: "雀巢中国官网（https://www.nestle.com.cn/）", method: "请致电：4006104868(雀巢) / 4007001826(惠氏)", content: "作为预防性措施，自愿回收特定批次奶粉。建议消费者立即停止喂食并联系客服。" }
+    };
+
+    const recallList = [
+        // 此处应放入完整数据。为了演示保留几条示例：
+  // --- 表格1数据 (中国大陆跨境电商) ---
+        { name: "Nestlé BEBA Supreme 2 800g", batch: "51550742F1", date: "30/06/2026", type: "source1" },
+  { name: "Nestlé BEBA Supreme 2 800g", batch: "51550742F2", date: "30/06/2027", type: "source1" },
+  { name: "Nestlé BEBA Supreme 3 830g", batch: "51230742F1", date: "31/05/2027", type: "source1" },
+  { name: "Nestlé BEBA Supreme 3 830g", batch: "51540742F1", date: "30/06/2027", type: "source1" },
+  { name: "Nestlé BEBA Supreme 3 830g", batch: "52850742F2", date: "31/10/2027", type: "source1" },
+  { name: "Nestlé BEBA Supreme 1 800g", batch: "51460742F2", date: "31/05/2027", type: "source1" },
+  { name: "Nestlé BEBA Supreme 1 800g", batch: "51470742F1", date: "31/05/2027", type: "source1" },
+  { name: "Nestlé BEBA Supreme 1 800g", batch: "51720742F2", date: "30/06/2027", type: "source1" },
+  { name: "BEBA Expert HA1 6x800g", batch: "51690742F3", date: "30/06/2027", type: "source1" },
+  { name: "BEBA SUPREME 3 12x200ml", batch: "53210742D1", date: "17/11/2026", type: "source1" },
+  { name: "BEBA SUPREME 3 12x200ml", batch: "53350742D1", date: "01/12/2026", type: "source1" },
+  { name: "BEBA SUPREME 2 12x200ml", batch: "53160742C1", date: "12/11/2026", type: "source1" },
+  { name: "BEBA SUPREME 2 12x200ml", batch: "53360742C1", date: "02/12/2026", type: "source1" },
+  { name: "惠氏Wyeth启赋双萃新版1段", batch: "51640017V1", date: "13/06/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋双萃新版2段", batch: "52850017C3", date: "12/10/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋双萃新版3段", batch: "52910017C1", date: "18/10/2027", type: "source1" },
+  { name: "惠氏启赋敏适HA适度水解1段", batch: "51660742F2", date: "15/06/2027", type: "source1" },
+  { name: "惠氏启赋敏适HA适度水解2段", batch: "51670742C2", date: "16/06/2027", type: "source1" },
+  { name: "惠氏启赋敏适HA适度水解2段", batch: "51680742C1", date: "17/06/2027", type: "source1" },
+  { name: "惠氏启赋敏适HA适度水解3段", batch: "52070742F3", date: "26/07/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋未来1段", batch: "51190017C2", date: "29/04/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋未来1段", batch: "51550017C3", date: "04/06/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋未来1段", batch: "51540017A4", date: "03/06/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋未来2段", batch: "51400017C1", date: "20/05/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋未来2段", batch: "52580017C2", date: "15/09/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋未来2段", batch: "51380017A1", date: "18/05/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋未来2段", batch: "52590017A2", date: "16/09/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋未来3段", batch: "52470017C3", date: "04/09/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋有机2段", batch: "51620017C1", date: "11/06/2027", type: "source1" },
+  { name: "惠氏Wyeth启赋有机3段", batch: "51620017C2", date: "11/06/2027", type: "source1" },
+  { name: "雀巢能恩全护A2 6HMO 1段", batch: "51250017C1", date: "05/05/2027", type: "source1" },
+  { name: "雀巢能恩全护A2 6HMO 2段", batch: "51260017C1", date: "06/05/2027", type: "source1" },
+  { name: "雀巢能恩全护A2 6HMO 2段", batch: "52930017C3", date: "20/10/2027", type: "source1" },
+  { name: "雀巢能恩全护A2 6HMO 3段", batch: "51260017C2", date: "06/05/2027", type: "source1" },
+  { name: "雀巢能恩启护1段", batch: "51670742F2", date: "16/06/2027", type: "source1" },
+  { name: "雀巢能恩启护1段", batch: "51670742F3", date: "16/06/2027", type: "source1" },
+  { name: "雀巢能恩启护3段", batch: "52070742F4", date: "26/07/2027", type: "source1" },
+  { name: "惠氏Wyeth S-26铂臻2段", batch: "51590017C6", date: "08/06/2027", type: "source1" },
+  { name: "英国惠氏SMA致护1段", batch: "51590346AA", date: "30/06/2027", type: "source1" },
+  { name: "惠氏SMA敏护1段", batch: "51450742F1", date: "25/05/2027", type: "source1" },
+  { name: "惠氏SMA敏护2段", batch: "51240742F2", date: "04/05/2027", type: "source1" },
+
+  // --- 表格2数据 (中国大陆) ---
+  { name: "力多精 1段 900g", batch: "525411423B", date: "11/09/2027", type: "source2" },
+  { name: "力多精 1段 400g", batch: "525411423U", date: "11/09/2027", type: "source2" },
+  { name: "力多精 2段 400g", batch: "525311423U", date: "10/09/2027", type: "source2" },
+  { name: "力多精 2段 400g", batch: "525411423T", date: "11/09/2027", type: "source2" },
+  { name: "力多精 2段 400g", batch: "528611423U", date: "13/10/2027", type: "source2" },
+  { name: "力多精 2段 900g", batch: "525411423A", date: "11/09/2027", type: "source2" },
+  { name: "力多精 2段 900g", batch: "528511423B", date: "12/10/2027", type: "source2" },
+  { name: "力多精 3段 900g", batch: "530311423A", date: "30/10/2027", type: "source2" },
+  { name: "力多精 3段 900g", batch: "530311423B", date: "30/10/2027", type: "source2" },
+  { name: "铂初能恩 1段 850g", batch: "526811423A", date: "25/09/2027", type: "source2" },
+  { name: "铂初能恩 2段 200g", batch: "526911423B", date: "27/03/2027", type: "source2" },
+  { name: "铂初能恩 2段 850g", batch: "526711423C", date: "24/09/2027", type: "source2" },
+  { name: "铂初能恩 3段 850g", batch: "526711423B", date: "24/09/2027", type: "source2" },
+  { name: "铂初能恩 3段 200g", batch: "526911423A", date: "27/03/2027", type: "source2" },
+  { name: "舒宜能恩 1段 900g", batch: "524611423A", date: "03/09/2027", type: "source2" },
+  { name: "舒宜能恩 1段 900g", batch: "524611423C", date: "03/09/2027", type: "source2" },
+  { name: "舒宜能恩 2段 900g", batch: "524511423A", date: "02/09/2027", type: "source2" },
+  { name: "舒宜能恩 2段 900g", batch: "524511423B", date: "02/09/2027", type: "source2" },
+  { name: "舒宜能恩 2段 900g", batch: "52461142CA", date: "03/09/2027", type: "source2" },
+  { name: "舒宜能恩 3段 3x400g", batch: "518111423T", date: "30/06/2027", type: "source2" },
+  { name: "舒宜能恩 3段 3x400g", batch: "518211423T", date: "01/07/2027", type: "source2" },
+  { name: "舒宜能恩 3段 3x400g", batch: "524411423T", date: "01/09/2027", type: "source2" },
+  { name: "舒宜能恩 3段 3x400g", batch: "524411423U", date: "01/09/2027", type: "source2" },
+  { name: "舒宜能恩 3段 3x400g", batch: "524511423T", date: "02/09/2027", type: "source2" },
+  { name: "舒宜能恩 3段 3x400g", batch: "524611423T", date: "03/09/2027", type: "source2" },
+  { name: "舒宜能恩 3段 3x400g", batch: "528511423T", date: "12/10/2027", type: "source2" },
+  { name: "舒宜能恩 3段 900g", batch: "518111423A", date: "30/06/2027", type: "source2" },
+  { name: "舒宜能恩 3段 900g", batch: "524511423C", date: "02/09/2027", type: "source2" },
+  { name: "舒宜能恩 3段 900g", batch: "528511423C", date: "12/10/2027", type: "source2" },
+  { name: "惠氏膳儿加儿童成长奶粉", batch: "527111423A", date: "24/09/2027", type: "source2" }
+        // ... 请在此继续添加你的几百条数据 ...
+    ];
+
+    let currentMatch = null;
+
+    // --- 查询功能 ---
+    function handleSearch() {
+        const input = document.getElementById('batchInput').value.trim().toUpperCase();
+        const section = document.getElementById('resultSection');
+        const msg = document.getElementById('resultMsg');
+        const btn = document.getElementById('showDetailBtn');
+
+        if(!input) return alert("请输入批次号");
+
+        currentMatch = recallList.find(i => i.batch === input);
+        section.style.display = 'block';
+
+        if(currentMatch) {
+            section.className = 'danger-bg';
+            msg.innerText = "请注意，您所输入的批次属于本次\n2026年1月雀巢(Nestle)奶粉召回批次";
+            btn.style.display = 'block';
+        } else {
+            section.className = 'safe-bg';
+            msg.innerText = "您所输入的编号不在\n2026年1月雀巢(Nestle)奶粉召回批次中";
+            btn.style.display = 'none';
+        }
+    }
+
+    // --- 详情渲染 ---
+    function openDrawer(type) {
+        closeAll();
+        document.getElementById('overlay').style.display = 'block';
+        
+        if(type === 'detail' && currentMatch) {
+            const info = sourceInfo[currentMatch.type];
+            document.getElementById('detailContent').innerHTML = `
+                <div class="detail-row"><div class="detail-label">标题</div><div class="detail-val">${info.title}婴幼儿配方奶粉召回通知</div></div>
+                <div class="detail-row"><div class="detail-label">比中产品</div><div class="detail-val highlight">${currentMatch.name}</div></div>
+                <div class="detail-row"><div class="detail-label">比中批次</div><div class="detail-val highlight">${currentMatch.batch}</div></div>
+                <div class="detail-row"><div class="detail-label">保质期</div><div class="detail-val">${currentMatch.date}</div></div>
+                <div class="detail-row"><div class="detail-label">处理办法</div><div class="detail-val highlight">${info.method}</div></div>
+                <div class="detail-row"><div class="detail-label">召回说明</div><div class="detail-val">${info.content}</div></div>
+            `;
+            document.getElementById('drawerDetail').style.display = 'block';
+        } else if(type === 'list') {
+            switchTab(1);
+            document.getElementById('drawerList').style.display = 'block';
+        } else if(type === 'howTo') {
+            showImg('如何查看批次编号', 'howto.jpg'); // 请确保有此图片
+        } else if(type === 'donate') {
+            showImg('觉得有帮助？打赏作者', 'donate.jpg'); // 请确保有此图片
+        }
+    }
+
+    // --- 名单分页切换 ---
+    function switchTab(idx) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('tab' + idx).classList.add('active');
+        
+        const type = 'source' + idx;
+        const html = recallList.filter(i => i.type === type).map(i => `
+            <tr><td>${i.name}</td><td>${i.batch}</td><td>${i.date}</td></tr>
+        `).join('');
+        document.getElementById('listBody').innerHTML = html;
+    }
+
+    function showImg(title, src) {
+        document.getElementById('imgTitle').innerText = title;
+        document.getElementById('targetImg').src = src;
+        document.getElementById('drawerImage').style.display = 'block';
+    }
+
+    function closeAll() {
+        document.getElementById('overlay').style.display = 'none';
+        document.querySelectorAll('.drawer').forEach(d => d.style.display = 'none');
+    }
+</script>
+
+</body>
+</html>
